@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>WebGL Neon VJ Overlay – Optimized Diamond Tunnel</title>
+<style>
+    html, body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: transparent;
+    }
+    canvas {
+        width: 100vw;
+        height: 100vh;
+        display: block;
+        background: transparent;
+    }
+</style>
+</head>
+<body>
+<canvas id="glcanvas"></canvas>
+
+<script>
+const canvas = document.getElementById("glcanvas");
+const gl = canvas.getContext("webgl", { alpha: true });
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+}
+resize();
+window.onresize = resize;
+
+const vertexShaderSource = `
+attribute vec2 a_position;
+void main() {
+    gl_Position = vec4(a_position, 0.0, 1.0);
+}
+`;
+
+// ⭐ OPTIMIZED FRAGMENT SHADER – ROMBURI PERFECTE + TUNEL + NEON
+const fragmentShaderSource = `
+precision highp float;
+
+uniform float u_time;
+uniform vec2 u_res;
+
+// paletă neon optimizată (mai puține operații)
+vec3 neonPalette(float t) {
+    float w = 6.2831 * t;
+    return 0.5 + 0.5 * cos(w + vec3(0.0, 2.1, 4.2));
+}
+
+// romb perfect optimizat
+float diamond(vec2 p){
+    p = abs(p);
+    return p.x + p.y;
+}
+
+void main() {
+    vec2 uv = (gl_FragCoord.xy - 0.5 * u_res.xy) / u_res.y;
+    float t = u_time * 0.3;
+
+    // rotire optimizată
+    float ca = cos(t * 0.25);
+    float sa = sin(t * 0.25);
+    uv = mat2(ca, -sa, sa, ca) * uv;
+
+    // warp optimizat (multipli mai mici)
+    float a = atan(uv.y, uv.x);
+    float warp = sin(a * 5.0 + t * 1.8) * 0.18;
+
+    // particule optimizate
+    float particles = sin((uv.x + uv.y) * 14.0 + t * 4.0) * 0.08;
+
+    // fascicule optimizate
+    float beams = smoothstep(0.015, 0.0, abs(sin(a * 10.0 + t * 2.5)) - 0.32);
+
+    // ⭐ tunel rombic perfect
+    float r = diamond(uv);
+
+    // ⭐ romburi care pornesc din centru și cresc
+    float layer = fract(r * 12.0 - t * 4.0);
+
+    // ⭐ contur rombic clar
+    float tunnel = smoothstep(0.018, 0.0, abs(layer - 0.5));
+
+    // combinare optimizată
+    float v = tunnel + warp + particles + beams;
+
+    // culori neon optimizate
+    vec3 col = neonPalette(v + t);
+
+    gl_FragColor = vec4(col, 0.8);
+}
+`;
+
+function createShader(type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    return shader;
+}
+
+const vs = createShader(gl.VERTEX_SHADER, vertexShaderSource);
+const fs = createShader(gl.FRAGMENT_SHADER, fragmentShaderSource);
+
+const program = gl.createProgram();
+gl.attachShader(program, vs);
+gl.attachShader(program, fs);
+gl.linkProgram(program);
+gl.useProgram(program);
+
+const positionBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array([
+        -1, -1,
+         1, -1,
+        -1,  1,
+        -1,  1,
+         1, -1,
+         1,  1
+    ]),
+    gl.STATIC_DRAW
+);
+
+const positionLocation = gl.getAttribLocation(program, "a_position");
+gl.enableVertexAttribArray(positionLocation);
+gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+const timeLocation = gl.getUniformLocation(program, "u_time");
+const resLocation = gl.getUniformLocation(program, "u_res");
+
+let start = performance.now();
+
+function render() {
+    let now = performance.now();
+    let t = (now - start) * 0.001;
+
+    gl.uniform1f(timeLocation, t);
+    gl.uniform2f(resLocation, canvas.width, canvas.height);
+
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    requestAnimationFrame(render);
+}
+
+render();
+</script>
+</body>
+</html>
